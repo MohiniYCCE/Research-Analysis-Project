@@ -14,3 +14,6 @@ xlrd==2.0.1
 statsmodels==0.14.4
 pyrebase4
 sentence-transformers
+fastapi==0.110.0
+uvicorn==0.23.2
+python-multipart==0.0.6

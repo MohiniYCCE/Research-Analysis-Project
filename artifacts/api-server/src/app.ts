@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import { ServerResponse } from "http";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
@@ -28,8 +29,6 @@ app.use(
   }),
 );
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
@@ -59,13 +58,36 @@ app.use(
     on: {
       error: (err, req, res) => {
         logger.warn({ err }, "Streamlit proxy error");
-        if (!res.headersSent && "status" in res) {
-          (res as any).status(503).json({ error: "Analytics engine unavailable" });
+        if (res instanceof ServerResponse && !res.headersSent) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: "Analytics engine unavailable" }));
         }
       },
     },
   }),
 );
+
+const pythonApiPort = process.env.PYTHON_API_PORT ?? "8502";
+app.use(
+  "/api/python",
+  createProxyMiddleware({
+    target: `http://localhost:${pythonApiPort}/api/python`,
+    changeOrigin: true,
+    secure: false,
+    on: {
+      error: (err, req, res) => {
+        logger.warn({ err }, "Python backend proxy error");
+        if (res instanceof ServerResponse && !res.headersSent) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: "Python backend unavailable" }));
+        }
+      },
+    },
+  }),
+);
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 

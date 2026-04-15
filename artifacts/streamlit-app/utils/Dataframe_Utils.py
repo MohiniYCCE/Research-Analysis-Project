@@ -3,10 +3,10 @@ import numpy as np
 from typing import Optional, Tuple, List, Dict, Any
 
 
-def load_dataframe(file) -> Optional[pd.DataFrame]:
+def load_dataframe(file, filename: str = "") -> Optional[pd.DataFrame]:
     """Load CSV or Excel file into a DataFrame."""
     try:
-        name = file.name.lower()
+        name = (filename or "").lower()
         if name.endswith(".csv"):
             df = pd.read_csv(file)
         elif name.endswith((".xlsx", ".xls")):

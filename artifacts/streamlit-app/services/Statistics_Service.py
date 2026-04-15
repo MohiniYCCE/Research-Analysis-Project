@@ -104,3 +104,26 @@ def get_frequency_table(df: pd.DataFrame, column: str, top_n: int = 20) -> pd.Da
         "Count": counts.values,
         "Percentage": pct.values,
     })
+
+
+def descriptive_statistics(df: pd.DataFrame) -> pd.DataFrame:
+    return get_descriptive_stats(df)
+
+
+def build_overall_categorical_table(df: pd.DataFrame) -> pd.DataFrame:
+    cat_cols = df.select_dtypes(include=["object", "category"]).columns
+    if len(cat_cols) == 0:
+        return pd.DataFrame()
+
+    summary_rows = []
+    for col in cat_cols:
+        counts = df[col].value_counts(dropna=False)
+        top = counts.index[0] if len(counts) > 0 else None
+        summary_rows.append({
+            "column": col,
+            "unique_values": int(df[col].nunique(dropna=False)),
+            "top_value": top,
+            "top_count": int(counts.iloc[0]) if len(counts) > 0 else 0,
+        })
+
+    return pd.DataFrame(summary_rows)

@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "dev": "export DATABASE_URL='postgresql://postgres.lpftzjvnyxrzrxedxyuu:CiaPhvMTVDYj6HT9@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres' && export PORT=3002 && export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
+    "start": "export DATABASE_URL='postgresql://postgres.lpftzjvnyxrzrxedxyuu:CiaPhvMTVDYj6HT9@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres' && export PORT=3002 && node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

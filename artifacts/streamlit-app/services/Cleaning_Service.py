@@ -5,7 +5,7 @@ from utils.Dataframe_Utils import (
     remove_duplicates,
     convert_column_types,
 )
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict, Any
 
 
 def apply_cleaning_pipeline(
@@ -45,3 +45,41 @@ def apply_cleaning_pipeline(
     summary["columns_after"] = len(df.columns)
 
     return df, summary
+
+
+def detect_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    issues: List[Dict[str, Any]] = []
+
+    for col in df.columns:
+        missing = int(df[col].isnull().sum())
+        dtype = "numeric" if pd.api.types.is_numeric_dtype(df[col]) else "categorical"
+        if missing > 0:
+            issues.append({
+                "column": col,
+                "dtype": dtype,
+                "issue": "Missing values",
+                "count": missing,
+                "recommended": "Fill missing values or drop rows",
+            })
+
+    dup_count = int(df.duplicated().sum())
+    if dup_count > 0:
+        issues.append({
+            "column": "__duplicates__",
+            "dtype": "duplicate",
+            "issue": "Duplicate rows",
+            "count": dup_count,
+            "recommended": "Remove duplicate rows",
+        })
+
+    return issues
+
+
+def is_numeric_like(value: Any) -> bool:
+    if value is None:
+        return False
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False

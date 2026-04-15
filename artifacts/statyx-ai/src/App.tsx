@@ -40,6 +40,14 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+function ProtectedDashboard() {
+  return <ProtectedRoute component={Dashboard} />;
+}
+
+function ProtectedAnalytics() {
+  return <ProtectedRoute component={Analytics} />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -48,17 +56,11 @@ function Router() {
       <Route path="/register" component={Register} />
       
       {/* Protected Routes */}
-      <Route path="/dashboard">
-        <ProtectedRoute component={Dashboard} />
-      </Route>
-      <Route path="/dashboard/analytics">
-        <ProtectedRoute component={Analytics} />
-      </Route>
+      <Route path="/dashboard" component={ProtectedDashboard} />
+      <Route path="/dashboard/analytics" component={ProtectedAnalytics} />
       
       {/* Catch-all for analytics sub-routes */}
-      <Route path="/dashboard/analytics/:module">
-        <ProtectedRoute component={Analytics} />
-      </Route>
+      <Route path="/dashboard/analytics/:module" component={ProtectedAnalytics} />
       
       <Route component={NotFound} />
     </Switch>
