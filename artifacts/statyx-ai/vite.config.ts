@@ -92,6 +92,11 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
+      "/api/python": {
+        target: "http://localhost:8502",
+        changeOrigin: true,
+        secure: false,
+      },
       "/api": {
         target: "http://localhost:3002",
         changeOrigin: true,

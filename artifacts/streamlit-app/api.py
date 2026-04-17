@@ -342,7 +342,7 @@ def stats_summary(request: DatasetPayload) -> JSONResponse:
 
     return JSONResponse(
         content=jsonable_encoder({
-            "descriptive": descriptive_df.reset_index().rename(columns={"index": "statistic"}).to_dict(orient="records"),
+            "descriptive": descriptive_df.reset_index().rename(columns={"index": "statistic"}).replace({np.nan: None}).to_dict(orient="records"),
             "categorical": categorical_records,
             "categoricalDetails": get_categorical_details(df),
             "numericInterpretations": get_numeric_interpretations(df),
