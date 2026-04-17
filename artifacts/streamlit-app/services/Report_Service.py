@@ -106,6 +106,31 @@ def generate_pdf_report(df: pd.DataFrame, filename: str, insights: list = None) 
         story.append(t2)
         story.append(Spacer(1, 14))
 
+    # Categorical Summary
+    cat_df = df.select_dtypes(include=["object", "category"])
+    if not cat_df.empty:
+        story.append(Paragraph("Categorical Summary", h2_style))
+        for col in cat_df.columns:
+            counts = df[col].value_counts(dropna=False).head(10)
+            total = len(df)
+            data = [["Category", "Count", "Percentage"]]
+            for value, count in counts.items():
+                label = "Missing" if pd.isna(value) else str(value)
+                data.append([label, str(count), f"{round(count / total * 100, 1)}%"])
+
+            t_cat = Table(data, colWidths=[2.4 * inch, 1.1 * inch, 1.1 * inch])
+            t_cat.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dbeafe")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#f0f9ff"), colors.white]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(t_cat)
+            story.append(Spacer(1, 12))
+    
     # AI Insights
     if insights:
         story.append(Paragraph("AI-Generated Insights", h2_style))
@@ -197,6 +222,28 @@ def generate_word_report(df: pd.DataFrame, filename: str, insights: list = None)
             for i, c in enumerate(cols):
                 row[i + 1].text = str(desc.loc[idx, c])
         doc.add_paragraph("")
+
+    # Categorical Summary
+    cat_df = df.select_dtypes(include=["object", "category"])
+    if not cat_df.empty:
+        doc.add_heading("Categorical Summary", level=1)
+        for col in cat_df.columns:
+            doc.add_heading(col, level=2)
+            counts = df[col].value_counts(dropna=False).head(10)
+            table = doc.add_table(rows=1, cols=3)
+            table.style = "Light Shading"
+            hdr = table.rows[0].cells
+            hdr[0].text = "Category"
+            hdr[1].text = "Count"
+            hdr[2].text = "Percentage"
+            total = len(df)
+            for value, count in counts.items():
+                row = table.add_row().cells
+                label = "Missing" if pd.isna(value) else str(value)
+                row[0].text = label
+                row[1].text = str(count)
+                row[2].text = f"{round(count / total * 100, 1)}%"
+            doc.add_paragraph("")
 
     # AI Insights
     if insights:

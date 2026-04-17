@@ -12,6 +12,68 @@ from services.report_service import generate_statistics_report
 import os
 
 
+@st.cache_data
+def cached_descriptive_stats(df_key):
+    """Cache descriptive statistics calculation to avoid recalculation on every rerun."""
+    df = st.session_state.get("df")
+    if df is None:
+        return None
+    return descriptive_statistics(df)
+
+
+@st.cache_data
+def cached_categorical_table(df_key):
+    """Cache categorical summary table to avoid recalculation on every rerun."""
+    df = st.session_state.get("df")
+    if df is None:
+        return None
+    return build_overall_categorical_table(df)
+
+
+@st.cache_data
+def get_cached_column_counts(col_name, df_key):
+    """Cache value counts for each column to avoid recalculation."""
+    df = st.session_state.get("df")
+    if df is None or col_name not in df.columns:
+        return None, None
+    counts = df[col_name].value_counts(dropna=False)
+    perc = (counts / counts.sum()) * 100
+    return counts, perc
+
+
+def build_categorical_chart(summary_df, col, chart_type, sort, labels, color, 
+                            title, title_size, axis_size, width, height, bg, grid, legend):
+    """Build a single categorical chart with given parameters."""
+    plot_df = summary_df.copy()
+    
+    if sort == "Descending":
+        plot_df = plot_df.sort_values("Count", ascending=False)
+    elif sort == "Ascending":
+        plot_df = plot_df.sort_values("Count", ascending=True)
+
+    if chart_type == "Column":
+        fig = px.bar(plot_df, x=plot_df.index, y="Count",
+                     text="Count" if labels else None)
+    else:
+        fig = px.bar(plot_df, y=plot_df.index, x="Count",
+                     orientation="h",
+                     text="Count" if labels else None)
+
+    fig.update_traces(marker_color=color, width=width)
+
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=title_size)),
+        height=height,
+        plot_bgcolor=bg,
+        paper_bgcolor=bg,
+        showlegend=legend,
+        xaxis=dict(showgrid=grid, tickfont=dict(size=axis_size)),
+        yaxis=dict(showgrid=grid, tickfont=dict(size=axis_size))
+    )
+    
+    return fig
+
+
 def render():
 
     # =====================================================
@@ -62,11 +124,14 @@ def render():
         return
 
     report_data = []
+    
+    # Create a cache key based on dataframe shape/content
+    df_key = (df.shape[0], df.shape[1], tuple(df.columns), id(df))
 
     # =====================================================
     # 📊 NUMERICAL SUMMARY
     # =====================================================
-    desc = descriptive_statistics(df)
+    desc = cached_descriptive_stats(df_key)
 
     if desc is not None:
 
@@ -94,7 +159,7 @@ def render():
     # =====================================================
     # 📊 CATEGORICAL SUMMARY
     # =====================================================
-    cat_cols = df.select_dtypes(include="object").columns
+    cat_cols = list(df.select_dtypes(include="object").columns)
 
     if len(cat_cols) > 0:
 
@@ -102,8 +167,9 @@ def render():
 
         st.markdown("### 🧩 Categorical Overview")
 
-        overall_cat = build_overall_categorical_table(df)
-        st.dataframe(overall_cat, use_container_width=True)
+        overall_cat = cached_categorical_table(df_key)
+        if overall_cat is not None:
+            st.dataframe(overall_cat, use_container_width=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -112,8 +178,9 @@ def render():
     # =====================================================
     for col in cat_cols:
 
-        counts = df[col].value_counts(dropna=False)
-        perc = (counts / counts.sum()) * 100
+        counts, perc = get_cached_column_counts(col, df_key)
+        if counts is None:
+            continue
 
         summary_df = pd.DataFrame({
             "Count": counts,
@@ -137,55 +204,45 @@ def render():
             labels = col3.checkbox("Labels", True, key=f"{col}_labels")
             legend = col4.checkbox("Legend", True, key=f"{col}_legend")
 
-            color = st.color_picker("Color", "#4F76C7", key=f"{col}_color")
+            color = st.color_picker("Color", "#d97706", key=f"{col}_color")
 
             # Advanced
             t1, t2, t3 = st.columns(3)
-            title = t1.text_input("Title", f"{col} Distribution", key=f"{col}_title")
+            title = t1.text_input("Title", f"Distribution of {col}", key=f"{col}_title")
             title_size = t2.slider("Title Size", 10, 40, 18, key=f"{col}_ts")
             axis_size = t3.slider("Axis Size", 8, 25, 12, key=f"{col}_as")
 
             a1, a2, a3 = st.columns(3)
-            width = a1.slider("Bar Width", 0.1, 1.0, 0.6, key=f"{col}_bw")
-            height = a2.slider("Height", 300, 800, 450, key=f"{col}_h")
+            width = a1.slider("Bar Width", 0.1, 1.0, 0.4, key=f"{col}_bw")
+            height = a2.slider("Height", 300, 800, 420, key=f"{col}_h")
             bg = a3.color_picker("Background", "#ffffff", key=f"{col}_bg")
 
             grid = st.checkbox("Grid", True, key=f"{col}_grid")
 
         # ----------------------------
-        # 📊 BUILD CHART ENGINE
+        # 📊 BUILD CHART (ONLY WHEN SETTINGS CHANGE)
         # ----------------------------
-        plot_df = summary_df.copy()
-
-        if sort == "Descending":
-            plot_df = plot_df.sort_values("Count", ascending=False)
-        elif sort == "Ascending":
-            plot_df = plot_df.sort_values("Count", ascending=True)
-
-        if chart_type == "Column":
-            fig = px.bar(plot_df, x=plot_df.index, y="Count",
-                         text="Count" if labels else None)
+        # Create unique hash of current settings to detect changes
+        chart_settings = (chart_type, sort, labels, legend, color, title, title_size, 
+                         axis_size, width, height, bg, grid)
+        settings_key = f"{col}_settings_hash"
+        
+        # Only rebuild chart if settings have changed
+        current_hash = hash(chart_settings)
+        last_hash = st.session_state.get(settings_key)
+        
+        if current_hash != last_hash or f"{col}_fig" not in st.session_state:
+            # Settings changed, rebuild chart
+            fig = build_categorical_chart(summary_df, col, chart_type, sort, labels, 
+                                         color, title, title_size, axis_size, width, height, bg, grid, legend)
+            st.session_state[f"{col}_fig"] = fig
+            st.session_state[settings_key] = current_hash
         else:
-            fig = px.bar(plot_df, y=plot_df.index, x="Count",
-                         orientation="h",
-                         text="Count" if labels else None)
+            # Settings unchanged, use cached chart
+            fig = st.session_state.get(f"{col}_fig")
 
-        fig.update_traces(marker_color=color, width=width)
-
-        fig.update_layout(
-            title=dict(text=title, font=dict(size=title_size)),
-            height=height,
-            plot_bgcolor=bg,
-            paper_bgcolor=bg,
-            showlegend=legend,
-            xaxis=dict(showgrid=grid, tickfont=dict(size=axis_size)),
-            yaxis=dict(showgrid=grid, tickfont=dict(size=axis_size))
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Save for report
-        st.session_state[f"{col}_fig"] = fig
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
 
         # ----------------------------
         # 🧠 INTERPRETATION
@@ -206,7 +263,7 @@ def render():
         st.markdown('</div>', unsafe_allow_html=True)
 
     # =====================================================
-    # 📥 REPORT ENGINE (FAST)
+    # 📥 REPORT ENGINE (CACHED)
     # =====================================================
     if report_data:
 

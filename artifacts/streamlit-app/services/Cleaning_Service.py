@@ -47,12 +47,30 @@ def apply_cleaning_pipeline(
     return df, summary
 
 
+def infer_column_type(series: pd.Series) -> str:
+    non_null = series.dropna().astype(str)
+    if len(non_null) == 0:
+        return "categorical"
+
+    def looks_numeric(x: str) -> bool:
+        try:
+            float(x)
+            return True
+        except Exception:
+            return False
+
+    numeric_ratio = non_null.apply(looks_numeric).mean()
+    return "numeric" if numeric_ratio >= 0.6 else "categorical"
+
+
 def detect_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
     issues: List[Dict[str, Any]] = []
 
     for col in df.columns:
-        missing = int(df[col].isnull().sum())
-        dtype = "numeric" if pd.api.types.is_numeric_dtype(df[col]) else "categorical"
+        series = df[col]
+        missing = int(series.isnull().sum())
+        dtype = infer_column_type(series)
+
         if missing > 0:
             issues.append({
                 "column": col,
@@ -61,6 +79,27 @@ def detect_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
                 "count": missing,
                 "recommended": "Fill missing values or drop rows",
             })
+
+        if dtype == "numeric":
+            non_numeric = int(series.notna().sum() - pd.to_numeric(series, errors="coerce").notna().sum())
+            if non_numeric > 0:
+                issues.append({
+                    "column": col,
+                    "dtype": dtype,
+                    "issue": "Non-numeric in numeric column",
+                    "count": non_numeric,
+                    "recommended": "Coerce non-numeric values to NaN and fill them",
+                })
+        else:
+            numeric_in_cat = int(series.apply(is_numeric_like).sum())
+            if numeric_in_cat > 0:
+                issues.append({
+                    "column": col,
+                    "dtype": dtype,
+                    "issue": "Numeric in categorical column",
+                    "count": numeric_in_cat,
+                    "recommended": "Cast numeric-like values to missing and fill or convert",
+                })
 
     dup_count = int(df.duplicated().sum())
     if dup_count > 0:

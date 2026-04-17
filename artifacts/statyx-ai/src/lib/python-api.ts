@@ -62,7 +62,16 @@ export async function applyCleaning(rows: DatasetRow[], actions: any[]) {
 }
 
 export async function fetchStatsSummary(rows: DatasetRow[]) {
-  return request<{ descriptive: any[]; categorical: any[]; preview: DatasetRow[]; columns: string[] }>(
+  return request<{
+    descriptive: any[];
+    categorical: any[];
+    categoricalDetails: Record<string, any[]>;
+    numericInterpretations: any[];
+    numericColumns: string[];
+    categoricalColumns: string[];
+    preview: DatasetRow[];
+    columns: string[];
+  }>(
     "/api/python/stats/summary",
     {
       method: "POST",
@@ -91,12 +100,12 @@ export async function runAiInsights(rows: DatasetRow[], objective: string) {
   );
 }
 
-export async function runCrossTab(rows: DatasetRow[], row: string, col: string) {
+export async function runCrossTab(rows: DatasetRow[], row: string, col: string, prevalence?: boolean) {
   return request<{ result: any }>(
     "/api/python/cross-tab",
     {
       method: "POST",
-      body: JSON.stringify({ rows, row, col }),
+      body: JSON.stringify({ rows, row, col, prevalence }),
     },
   );
 }

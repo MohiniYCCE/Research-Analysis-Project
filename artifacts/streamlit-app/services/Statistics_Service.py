@@ -119,11 +119,69 @@ def build_overall_categorical_table(df: pd.DataFrame) -> pd.DataFrame:
     for col in cat_cols:
         counts = df[col].value_counts(dropna=False)
         top = counts.index[0] if len(counts) > 0 else None
+        top_count = int(counts.iloc[0]) if len(counts) > 0 else 0
+        total = len(df)
+        top_pct = round(top_count / total * 100, 1) if total > 0 else 0.0
+
         summary_rows.append({
             "column": col,
-            "unique_values": int(df[col].nunique(dropna=False)),
-            "top_value": top,
-            "top_count": int(counts.iloc[0]) if len(counts) > 0 else 0,
+            "count": int(df[col].dropna().shape[0]),
+            "unique": int(df[col].nunique(dropna=False)),
+            "top": top,
+            "freq": top_count,
+            "top_percentage": top_pct,
         })
 
     return pd.DataFrame(summary_rows)
+
+
+def get_categorical_details(df: pd.DataFrame, top_n: int = 50) -> Dict[str, List[Dict[str, Any]]]:
+    cat_cols = df.select_dtypes(include=["object", "category"]).columns
+    details: Dict[str, List[Dict[str, Any]]] = {}
+
+    for col in cat_cols:
+        counts = df[col].value_counts(dropna=False)
+        total = len(df)
+        rows: List[Dict[str, Any]] = []
+
+        for value, count in counts.head(top_n).items():
+            label = "Missing" if pd.isna(value) else str(value)
+            rows.append({
+                "category": label,
+                "count": int(count),
+                "percentage": round(count / total * 100, 1) if total > 0 else 0.0,
+            })
+
+        details[col] = rows
+
+    return details
+
+
+def get_numeric_interpretations(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    numeric_df = df.select_dtypes(include=[np.number])
+    interpretations: List[Dict[str, Any]] = []
+    for col in numeric_df.columns:
+        series = numeric_df[col].dropna()
+        if series.empty:
+            continue
+
+        mean = float(series.mean())
+        std = float(series.std())
+        median = float(series.median())
+        min_val = float(series.min())
+        max_val = float(series.max())
+
+        interpretations.append({
+            "column": col,
+            "mean": round(mean, 4),
+            "std": round(std, 4),
+            "median": round(median, 4),
+            "min": round(min_val, 4),
+            "max": round(max_val, 4),
+            "summary": (
+                f"For {col}, the mean was {mean:.2f} with a standard deviation of {std:.2f}, "
+                f"median {median:.2f}, and range {min_val:.2f} to {max_val:.2f}."
+            ),
+        })
+
+    return interpretations
